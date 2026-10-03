@@ -5,6 +5,10 @@ subgraph (its nodes, links, groups and the values set on the wrapper), rewires t
 selector, image loaders, Save Video) straight to the inner ones, and swaps UNETLoader for TFMiniMaxH3Loader. Widget
 orders come from a running ComfyUI's /object_info (with this node installed).
 
+Defaults are the fastest measured setup (81 s for a 1344x768 5 s video on an RTX 5070 Ti): the Lightning switch on
+(lightx2v Turbo LoRA, 8 steps), Comfy-Org's int8 ConvRot video VAE, and ComfyUI's Model Sparse Attention node
+(sol-attn, tau 1.3, dense for the first 20% of steps) after the model switch. --stock-settings keeps the template's.
+
 Usage: python_embeded\python.exe -B tools\make_workflow.py [--server http://127.0.0.1:8188]
 """
 import argparse
@@ -123,9 +127,42 @@ def flatten(w: dict, info: dict) -> dict:
     return out
 
 
+VAE_INT8 = "minimax_h3_video_vae_int8_convrot.safetensors"
+SPARSE = ["sol-attn", 1.3, 0.2, 1, "", 12288, 256, "exact_kv_and_rows", False]
+
+
+def fastest(w: dict) -> dict:
+    """Lightning on, int8 video VAE, sparse attention between the model switch and its consumers."""
+
+    nodes = {n["id"]: n for n in w["nodes"]}
+    for n in w["nodes"]:
+        if n["type"] == "PrimitiveBoolean":
+            n["widgets_values"][0] = True
+        if n["type"] == "VAELoader" and n["widgets_values"][0] == "minimax_h3_video_vae_fp16.safetensors":
+            n["widgets_values"][0] = VAE_INT8
+    # the switch that picks the (LoRA) model: a ComfySwitchNode whose output feeds a MODEL input
+    switch = next(n for n in w["nodes"] if n["type"] == "ComfySwitchNode" and any(
+        nodes[l[3]]["inputs"][l[4]]["type"] == "MODEL" for l in w["links"] if l[1] == n["id"]))
+    sid, lid = w["last_node_id"] + 1, w["last_link_id"] + 1
+    out_links = [l for l in w["links"] if l[1] == switch["id"] and l[2] == 0]
+    for l in out_links:                              # consumers now read the sparse node's output
+        l[1], l[2] = sid, 0
+    w["links"].append([lid, switch["id"], 0, sid, 0, "MODEL"])
+    switch["outputs"][0]["links"] = [lid]
+    w["nodes"].append({
+        "id": sid, "type": "BlockSparseAttention", "title": "Model Sparse Attention (fastest; bypass for exact repeats)",
+        "pos": [switch["pos"][0], switch["pos"][1] + 140], "size": [320, 250], "flags": {}, "order": switch.get("order", 0),
+        "mode": 0, "inputs": [{"localized_name": "model", "name": "model", "type": "MODEL", "link": lid}],
+        "outputs": [{"localized_name": "model", "name": "model", "type": "MODEL", "links": [l[0] for l in out_links]}],
+        "properties": {"Node name for S&R": "BlockSparseAttention"}, "widgets_values": list(SPARSE)})
+    w["last_node_id"], w["last_link_id"] = sid, lid
+    return w
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--server", default="http://127.0.0.1:8188")
+    ap.add_argument("--stock-settings", action="store_true", help="keep the template's settings (no fastest defaults)")
     a = ap.parse_args()
     info = json.loads(urllib.request.urlopen(a.server + "/object_info").read())
     if "TFMiniMaxH3Loader" not in info:
@@ -134,6 +171,8 @@ def main():
     tdir = Path(comfyui_workflow_templates_json.__file__).parent / "templates"
     for src, dst in TEMPLATES.items():
         w = flatten(json.load(open(tdir / src, encoding="utf-8")), info)
+        if not a.stock_settings:
+            w = fastest(w)
         path = ROOT / "workflows" / dst
         path.write_text(json.dumps(w, indent=1, ensure_ascii=False), encoding="utf-8")
         print("wrote", path, len(w["nodes"]), "nodes", len(w["links"]), "links")

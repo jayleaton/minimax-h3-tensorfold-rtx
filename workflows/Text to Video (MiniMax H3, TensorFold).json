@@ -1,8 +1,8 @@
 {
  "id": "e3f2b845-8f2c-4b5a-9caf-eac1029d3e7e",
  "revision": 0,
- "last_node_id": 1160,
- "last_link_id": 1286,
+ "last_node_id": 1161,
+ "last_link_id": 1287,
  "nodes": [
   {
    "id": 92,
@@ -225,7 +225,7 @@
     ]
    },
    "widgets_values": [
-    "minimax_h3_video_vae_fp16.safetensors"
+    "minimax_h3_video_vae_int8_convrot.safetensors"
    ],
    "widgets_values_named": {
     "vae_name": "minimax_h3_video_vae_fp16.safetensors"
@@ -1146,8 +1146,7 @@
      "name": "output",
      "type": "MODEL",
      "links": [
-      1279,
-      1286
+      1287
      ]
     }
    ],
@@ -1355,13 +1354,62 @@
     "Node name for S&R": "PrimitiveBoolean"
    },
    "widgets_values": [
-    false
+    true
    ],
    "widgets_values_named": {
     "value": false
    },
    "color": "#322",
    "bgcolor": "#533"
+  },
+  {
+   "id": 1161,
+   "type": "BlockSparseAttention",
+   "title": "Model Sparse Attention (fastest; bypass for exact repeats)",
+   "pos": [
+    440,
+    5120
+   ],
+   "size": [
+    320,
+    250
+   ],
+   "flags": {},
+   "order": 17,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "model",
+     "name": "model",
+     "type": "MODEL",
+     "link": 1287
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "model",
+     "name": "model",
+     "type": "MODEL",
+     "links": [
+      1279,
+      1286
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "BlockSparseAttention"
+   },
+   "widgets_values": [
+    "sol-attn",
+    1.3,
+    0.2,
+    1,
+    "",
+    12288,
+    256,
+    "exact_kv_and_rows",
+    false
+   ]
   }
  ],
  "links": [
@@ -1543,7 +1591,7 @@
   ],
   [
    1279,
-   1156,
+   1161,
    0,
    1145,
    0,
@@ -1591,9 +1639,17 @@
   ],
   [
    1286,
-   1156,
+   1161,
    0,
    1147,
+   0,
+   "MODEL"
+  ],
+  [
+   1287,
+   1156,
+   0,
+   1161,
    0,
    "MODEL"
   ]
