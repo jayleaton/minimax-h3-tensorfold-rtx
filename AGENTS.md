@@ -72,7 +72,8 @@ tensorfold_video:
   custom_nodes: comfyui
 ```
 
-Restart ComfyUI, then in the MiniMax H3 workflow replace `Load Diffusion Model` (UNETLoader) with **TensorFold MiniMax H3 Loader**,
+Restart ComfyUI and load `workflows\Text to Video (MiniMax H3, TensorFold).json` (fastest settings; it needs the
+int8 video VAE and the Turbo LoRA listed in the README), or in an existing MiniMax H3 workflow replace `Load Diffusion Model` (UNETLoader) with **TensorFold MiniMax H3 Loader**,
 same file, precision `nvfp4`. LoRA nodes after it keep working (the engine merges them; first use of a LoRA set
 converts once). The node finds this repo through its own location (or `TFVIDEO_REPO`).
 

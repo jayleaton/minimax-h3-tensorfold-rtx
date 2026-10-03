@@ -71,12 +71,14 @@ range as stock), not identical waveforms. Sparse attention on top of NVFP4 keeps
 (the first 20% of steps stay dense) and changes fine detail. Engine correctness: its bf16 path matches ComfyUI's
 forward to cos 0.998-0.9998 on real captured steps (`tools/check_forward.py`).
 
-## Use it
+## Use it: the ComfyUI recipe
 
 Requirements: an NVIDIA RTX 50-series GPU (compute capability 12.x; NVFP4 needs the block-scaled FP4 MMA), a recent
 driver (tested 617.14), ComfyUI portable 0.37+ with torch 2.10+cu130 and comfy-kitchen 0.2.35, 64 GB of RAM, Visual
 Studio 2022/2026 with the C++ x64 tools (to build the kernels once), Python 3.13, [uv](https://docs.astral.sh/uv/).
 Step by step, with checks: [`AGENTS.md`](AGENTS.md).
+
+**1. Build** (once):
 
 ```bat
 git clone --recurse-submodules https://github.com/jayleaton/minimax-h3-tensorfold-rtx
@@ -84,17 +86,21 @@ cd minimax-h3-tensorfold-rtx
 scripts\setup.cmd                       :: venv, NVIDIA's pip CUDA 13.4 toolkit, builds TensorFold's kernels for your GPU
 ```
 
-Ready workflows in [`workflows/`](workflows): **Text to Video** and **Image to Video (MiniMax H3, TensorFold)** are
-ComfyUI's own MiniMax H3 templates flattened into plain nodes (the templates hide the pipeline in one subgraph box)
-with the loader swapped; drag one into ComfyUI. `tools/make_workflow.py` regenerates them from your ComfyUI's
-templates. For the fastest decode, Comfy-Org's
-[`minimax_h3_video_vae_int8_convrot.safetensors`](https://huggingface.co/Comfy-Org/MiniMax-H3/tree/main/vae) goes in
-`models\vae` and replaces the fp16 video VAE in the two VAE loaders.
+**2. Models** (from [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3) and
+[lightx2v/Minimax-h3-Turbo](https://huggingface.co/lightx2v/Minimax-h3-Turbo)), into ComfyUI's `models` folders:
 
-Then make the node visible to ComfyUI, either with a directory junction
+| Folder | File | Used for |
+| --- | --- | --- |
+| `diffusion_models` | `minimax_h3_fl2va_pruned_int8_convrot.safetensors` | the DiT (the loader converts it to NVFP4 once) |
+| `text_encoders` | `qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors` | text encoder |
+| `vae` | `minimax_h3_video_vae_int8_convrot.safetensors` | video VAE, fast decode (default in the workflows) |
+| `vae` | `minimax_h3_audio_vae_fp32.safetensors` | audio VAE |
+| `loras` | `minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors` | Lightning / Turbo, 8 steps (on in the workflows) |
+
+**3. Install the node**, either with a directory junction
 (`mklink /J "%COMFYUI_PORTABLE%\ComfyUI\custom_nodes\ComfyUI-TensorFold-Video" "%CD%\comfyui\ComfyUI-TensorFold-Video"`)
-or an `extra_model_paths.yaml` entry with `custom_nodes:` pointing at `comfyui/` (needed when ComfyUI lives on an
-exFAT/FAT external drive, where junctions cannot be made):
+or, when ComfyUI is on an exFAT/FAT drive (junctions fail with "Local NTFS volumes are required"), an
+`extra_model_paths.yaml` in the ComfyUI folder:
 
 ```yaml
 # <ComfyUI>\extra_model_paths.yaml
@@ -103,10 +109,23 @@ tensorfold_video:
   custom_nodes: comfyui
 ```
 
-In your MiniMax H3 workflow replace `Load Diffusion Model` with **TensorFold MiniMax H3 Loader** (same file, precision `nvfp4`, attention `auto`).
+**4. Load a workflow**: drag [`workflows/Text to Video (MiniMax H3, TensorFold).json`](workflows) or
+[`Image to Video (MiniMax H3, TensorFold).json`](workflows) into ComfyUI and run. They are ComfyUI's own MiniMax H3
+templates (prompt, resolution selector, duration, Lightning switch, notes) flattened into plain nodes, with the
+fastest measured setup as the default:
 
-The first load converts the DiT once (~2 minutes) into `%LOCALAPPDATA%\tfvideo` (11 GB; `TFVIDEO_CACHE` moves it;
-keep it on an internal NVMe drive); later loads take ~15 s. A LoRA set is merged and converted once on first use.
+| Setting in the workflow | Default | For stock-like output instead |
+| --- | --- | --- |
+| **TensorFold MiniMax H3 Loader** | `nvfp4`, attention `auto` (INT8) | precision `int8` (needs ~20 GB more RAM) |
+| **Lightning** switch | on: Turbo LoRA, 8 steps | off: 20 steps |
+| **Model Sparse Attention** node | sol-attn, tau 1.3, dense for the first 20% of steps | bypass it (Ctrl+B): exact repeats of a seed across ComfyUI restarts |
+| video **Load VAE** | `minimax_h3_video_vae_int8_convrot` | `minimax_h3_video_vae_fp16` |
+
+The first run converts the DiT once (~2 minutes) into `%LOCALAPPDATA%\tfvideo` (11 GB per LoRA set; `TFVIDEO_CACHE`
+moves it; keep it on an internal NVMe drive); later loads take ~15 s. To use the loader in your own workflows,
+replace `Load Diffusion Model` with **TensorFold MiniMax H3 Loader** (same file). `tools/make_workflow.py` regenerates
+the workflows from your ComfyUI's templates (`--stock-settings` keeps the templates' own settings);
+`bench/run_workflow.py` runs a saved workflow file headless on a running ComfyUI.
 
 Precisions: `nvfp4` (fastest), `int8` (the checkpoint's own int8 weights: stock numerics, engine speed-ups for
 attention and memory only), `nvfp4:edge=2` (first and last two blocks FP8), `fp8`, `bf16-check` (reference, ~40 GB
@@ -142,8 +161,8 @@ experimental Triton kernels), `sdpa` / `cudnn` (bf16).
 | --- | --- |
 | `tfvideo/` | the engine: `minimax_h3.py` (blocks, weight streaming, ComfyUI block facade), `linear.py` (NVFP4 / FP8 / int8 / bf16), `kernels.py` (fused Triton norm + modulation, gated residual, SwiGLU), `attention.py`, `fp4attn.py` (experimental FP4/FP8 Triton attention), `source.py` (int8 ConvRot reader), `store.py` (conversion, cache), `comfy_nodes.py` (loader, LoRA routing), `ext.py` (prebuilt kernels) |
 | `comfyui/ComfyUI-TensorFold-Video/` | the ComfyUI custom node package |
-| `bench/` | headless ComfyUI harness (blueprint graph; `--tf`, `--lora`, `--sparse`, `--vae`, `--same-seed`), ground-truth dump, video/audio quality gate |
-| `workflows/` | ComfyUI's H3 text-to-video and image-to-video templates, flattened, with the TensorFold loader (`tools/make_workflow.py`) |
+| `bench/` | `run_workflow.py` (runs a saved workflow file on a running ComfyUI), headless ComfyUI harness (blueprint graph; `--tf`, `--lora`, `--sparse`, `--vae`, `--same-seed`), ground-truth dump, video/audio quality gate |
+| `workflows/` | the recipe: ComfyUI's H3 text-to-video and image-to-video templates, flattened, TensorFold loader, fastest settings (`tools/make_workflow.py`) |
 | `tools/` | engine-vs-ComfyUI forward check, determinism check, attention benchmarks, block and VAE profilers, `env.cmd` (MSVC + pip CUDA toolkit) |
 | `vendor/TensorFold` | TensorFold v0.6.1, unmodified submodule |
 | `scripts/check-public.sh` | scan for private details before publishing |
