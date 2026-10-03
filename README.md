@@ -1,5 +1,7 @@
 Follow me on X for more updates: https://x.com/jayleaton
 
+Support me here: https://buymeacoffee.com/jayleaton
+
 # MiniMax H3 on TensorFold kernels, one RTX 5070 Ti (native Windows)
 
 A faster way to run the MiniMax H3 audio-video model in ComfyUI: a drop-in loader node that runs H3's 19B-parameter
