@@ -84,8 +84,10 @@ cd minimax-h3-tensorfold-rtx
 scripts\setup.cmd                       :: venv, NVIDIA's pip CUDA 13.4 toolkit, builds TensorFold's kernels for your GPU
 ```
 
-A ready workflow: [`workflows/Image to Video (MiniMax H3, TensorFold).json`](workflows) is ComfyUI's "Image to Video
-(MiniMax H3)" blueprint with the loader swapped (drag it into ComfyUI). For the fastest decode, Comfy-Org's
+Ready workflows in [`workflows/`](workflows): **Text to Video** and **Image to Video (MiniMax H3, TensorFold)** are
+ComfyUI's own MiniMax H3 templates flattened into plain nodes (the templates hide the pipeline in one subgraph box)
+with the loader swapped; drag one into ComfyUI. `tools/make_workflow.py` regenerates them from your ComfyUI's
+templates. For the fastest decode, Comfy-Org's
 [`minimax_h3_video_vae_int8_convrot.safetensors`](https://huggingface.co/Comfy-Org/MiniMax-H3/tree/main/vae) goes in
 `models\vae` and replaces the fp16 video VAE in the two VAE loaders.
 
@@ -141,7 +143,7 @@ experimental Triton kernels), `sdpa` / `cudnn` (bf16).
 | `tfvideo/` | the engine: `minimax_h3.py` (blocks, weight streaming, ComfyUI block facade), `linear.py` (NVFP4 / FP8 / int8 / bf16), `kernels.py` (fused Triton norm + modulation, gated residual, SwiGLU), `attention.py`, `fp4attn.py` (experimental FP4/FP8 Triton attention), `source.py` (int8 ConvRot reader), `store.py` (conversion, cache), `comfy_nodes.py` (loader, LoRA routing), `ext.py` (prebuilt kernels) |
 | `comfyui/ComfyUI-TensorFold-Video/` | the ComfyUI custom node package |
 | `bench/` | headless ComfyUI harness (blueprint graph; `--tf`, `--lora`, `--sparse`, `--vae`, `--same-seed`), ground-truth dump, video/audio quality gate |
-| `workflows/` | the blueprint with the TensorFold loader |
+| `workflows/` | ComfyUI's H3 text-to-video and image-to-video templates, flattened, with the TensorFold loader (`tools/make_workflow.py`) |
 | `tools/` | engine-vs-ComfyUI forward check, determinism check, attention benchmarks, block and VAE profilers, `env.cmd` (MSVC + pip CUDA toolkit) |
 | `vendor/TensorFold` | TensorFold v0.6.1, unmodified submodule |
 | `scripts/check-public.sh` | scan for private details before publishing |
