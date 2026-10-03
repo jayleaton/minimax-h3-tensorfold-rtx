@@ -1,0 +1,52 @@
+minimax-h3-tensorfold-rtx
+Copyright 2026 Jay Leaton (https://x.com/jayleaton)
+
+This project's own code, scripts, benchmarks and documentation are licensed under the Apache License,
+Version 2.0 (see LICENSE). If you redistribute this project or a modified version of it, keep this NOTICE
+file and the copyright line above, and state what you changed (Apache-2.0, section 4).
+
+This project builds on third-party work that keeps its own license:
+
+TensorFold
+  https://github.com/ashhart/TensorFold
+  Copyright (c) 2026 TensorFold contributors. Apache License 2.0 from release 0.6.0 (code written before 0.6.0
+  keeps its MIT notice, vendor/TensorFold/LICENSES/MIT.txt).
+  Included as the unmodified git submodule vendor/TensorFold (pinned at v0.6.1, 17c73e1). tfvideo calls its
+  NVFP4 quantizers and prompt GEMMs (tensorfold.cuda.nvfp4.checkpoint, tensorfold.cuda.nvfp4.linear) and loads
+  its CUDA extensions; tfvideo/ext.py wraps tensorfold.cuda.build.load to import extensions prebuilt from the
+  same sources. TensorFold's license text is in vendor/TensorFold/LICENSE, its notices in
+  vendor/TensorFold/NOTICE and vendor/TensorFold/THIRD_PARTY_NOTICES.md.
+
+comfy-kitchen (Comfy Org, Apache-2.0; installed with pip / shipped with ComfyUI, not included)
+  https://pypi.org/project/comfy-kitchen/. The engine calls its INT8 attention (comfy_kitchen.sage_attention),
+  its fused per-head RMSNorm + split-half RoPE (rms_rope_split_half_) and, for the int8 precision, its INT8
+  ConvRot GEMM (torch.ops.comfy_kitchen.int8_linear). tfvideo/source.py reimplements its ConvRot Hadamard
+  construction (a 4x4 regular Hadamard raised by Kronecker powers) to read int8_convrot checkpoints.
+
+MiniMax H3 reference implementation (architecture only, no code copied)
+  The engine runs inside ComfyUI's own MiniMaxH3Model (https://github.com/comfyanonymous/ComfyUI,
+  comfy/ldm/minimax/model.py, GPL-3.0) and replaces only its DiT blocks; tfvideo/minimax_h3.py is an independent
+  implementation of a block (RMSNorm + per-token modulation, fused q/k norm + RoPE, attention, SwiGLU, gated
+  residuals) checked numerically against ComfyUI's. No source file of ComfyUI is included.
+
+ComfyUI (host, not included)
+  The node in comfyui/ runs inside a user's ComfyUI (GPL-3.0) and imports its modules at run time
+  (comfy.model_detection, comfy.model_patcher, comfy.model_management, comfy.lora, comfy.sd, folder_paths). bench/
+  drives ComfyUI headless to measure the baseline. It is not included.
+
+Quality metrics (downloaded at run time by bench/quality.py, not included)
+  lpips (BSD-2-Clause, https://github.com/richzhang/PerceptualSimilarity) and DINOv2 ViT-S/14
+  (https://github.com/facebookresearch/dinov2, Apache-2.0) through torch.hub; torchaudio (BSD-2-Clause).
+
+scripts/check-public.sh
+  From the author's glm53-tensorfold-spark repository (https://github.com/jayleaton/glm53-tensorfold-spark),
+  Apache-2.0, same author.
+
+Not included; each user downloads these under their own terms:
+
+MiniMax H3 weights (diffusion model, Qwen3-VL 32B text encoder, video and audio VAEs)
+  Published by MiniMax; ComfyUI repackaging at https://huggingface.co/Comfy-Org/MiniMax-H3. See the model card for
+  the license.
+
+MiniMax H3 Turbo LoRAs
+  https://huggingface.co/lightx2v/Minimax-h3-Turbo (Apache-2.0), used by the blueprint's "Lightning" switch.
