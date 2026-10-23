@@ -2,6 +2,8 @@ r"""Where things are, from the environment (no machine-specific defaults).
 
 COMFYUI_PORTABLE   the ComfyUI Windows portable folder (holds python_embeded\ and ComfyUI\)
 MINIMAX_H3_DIT     the MiniMax H3 DiT checkpoint (default: <ComfyUI>\models\diffusion_models\minimax_h3_fl2va_pruned_int8_convrot.safetensors)
+COMFYUI_PYTHON     the Python that runs ComfyUI (default: <COMFYUI_PORTABLE>\python_embeded\python.exe); for a git checkout
+                   of ComfyUI with its own venv, point COMFYUI_PORTABLE at the folder holding the ComfyUI checkout
 """
 
 from __future__ import annotations
@@ -26,7 +28,7 @@ def comfy() -> Path:
 
 
 def python() -> Path:
-    return portable() / "python_embeded" / "python.exe"
+    return Path(os.environ.get("COMFYUI_PYTHON") or portable() / "python_embeded" / "python.exe")
 
 
 def dit() -> str:
