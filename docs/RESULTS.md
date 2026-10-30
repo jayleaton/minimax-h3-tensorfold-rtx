@@ -123,3 +123,42 @@ modulation rows, RoPE, gates, PDD heads) is exact; NVFP4's difference is 4-bit w
   reproducible across restarts, stock ComfyUI included (`det_bs1` vs `det_bs2`: max pixel difference 108).
 - Text encoding a new prompt: ~50 s the first time (the 32B encoder streams in), seconds once warm; at 768x448 a
   new-prompt video is 28.5 s with the engine vs 62 s stock.
+
+## 8. RTX 5090 (32 GB)
+
+Measured 24 Oct 2026 with the same harness, prompt, seeds and settings: RTX 5090 32 GB (sm_120, 170 SMs), NVIDIA
+driver 610.88, Windows 11, Core Ultra 9 285K, 64 GB RAM, models on an internal NVMe drive. ComfyUI v0.42.1 from git
+with its own venv (torch 2.10.0+cu130, comfy-kitchen 0.2.39, triton-windows 3.6.0; `COMFYUI_PYTHON`). Kernels built
+with an installed CUDA 13.1 toolkit instead of the pip 13.4 one, which needed two local changes in the TensorFold
+checkout: `nvfp4/act.cu` and `nvfp4/experts.cu` include `<ATen/ATen.h>` instead of `<torch/extension.h>` (nvcc +
+MSVC: `'std': ambiguous symbol` in `torch/csrc/dynamo/compiled_autograd.h`), and `-DWIN32_LEAN_AND_MEAN` in
+`NVCC_APPEND_FLAGS` (13.1's CCCL pulls NVTX, then `windows.h` and `rpcndr.h`, whose `#define small char` breaks
+`c10/cuda/CUDACachingAllocator.h`).
+
+| 768x448, 2 s (56 frames), 20 steps, warm (new seed) | s / step | seconds per video |
+| --- | ---: | ---: |
+| stock ComfyUI | 0.64 | 15.0 |
+| stock + `--use-ck-attention` | 0.52 | 12.6 |
+| engine, NVFP4 | 0.38 | 10.6 |
+| new prompt each video (six gate prompts, text encoding included): stock / engine | | 17.8 / 12.9 |
+
+| 1344x768, 5 s (124 frames), warm (new seed) | s / step | seconds per video | vs stock |
+| --- | ---: | ---: | ---: |
+| stock ComfyUI, 20 steps | 12.1 | 255 | 1x |
+| stock + `--use-ck-attention`, 20 steps | 6.2 | 137 | 1.86x |
+| engine, NVFP4, 20 steps | 5.3 | 121 | 2.11x |
+| stock + ck-attention + Turbo LoRA, 8 steps | 6.1 | 62.9 | 4.1x |
+| engine + Turbo LoRA, 8 steps | 5.3 | 57.0 | 4.5x |
+| stock + ck-attention + Turbo + sparse attention (sol-attn, tau 1.3) + int8 video VAE | | 43.3 | 5.9x |
+| engine + Turbo + sparse attention + int8 video VAE | | 37.2 | 6.9x |
+
+- With 32 GB, stock ComfyUI is no longer short of VRAM, and the engine's lead over stock with the same levers
+  (ck-attention, Turbo, sparse attention, int8 VAE) is 1.10-1.17x, the NVFP4 GEMMs; on the 16 GB card it was
+  1.23-1.26x. Attention, comfy-kitchen INT8 on both paths, is most of what is left.
+- The engine keeps all 50 blocks resident at 37.8k tokens (27.2 GiB usable, 4.8 GiB kept for activations), so nothing
+  streams. Device VRAM peak: engine 20-21 GB, stock 31.9 GB (ComfyUI fills the card).
+- First use: converting the DiT took 25 s, and converting it again with the Turbo LoRA merged 29 s; a cached engine
+  then loads in 12-14 s.
+- Quality gate (six prompts, 768x448, engine NVFP4 vs stock): mean LPIPS 0.470, DINO 0.824, PSNR 13.6, audio log-mel
+  cosine 0.911 (16 GB card: 0.493 / 0.822 / 0.903); every clip clean and on-prompt. DINOv2-S weights were read from
+  the Hugging Face copy (`facebook/dinov2-small`) instead of `torch.hub`.

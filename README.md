@@ -153,7 +153,9 @@ experimental Triton kernels), `sdpa` / `cudnn` (bf16).
 - A synthetic stress test with exploding activations hung the GPU long enough for a Windows TDR (driver reset); real
   sampling never produced one in ~40 runs here.
 - Not measured: image-to-video (first/last frame), reference-to-video, the Fun ControlNet patch (the engine blocks
-  accept ComfyUI's block patches, untested), RTX 5080/5090, other ComfyUI versions.
+  accept ComfyUI's block patches, untested), RTX 5080. RTX 5090 with ComfyUI 0.42.1:
+  [`docs/RESULTS.md`](docs/RESULTS.md#8-rtx-5090-32-gb) (the engine's lead over stock with the same levers is
+  1.10-1.17x there, since 32 GB removes stock's VRAM pressure).
 
 ## Repository
 
